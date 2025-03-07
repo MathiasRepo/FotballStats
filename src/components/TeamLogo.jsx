@@ -1,177 +1,217 @@
 import React, { useState } from 'react';
 
 /**
- * TeamLogo component displays a team's logo or a fallback with initials
+ * Normalizes team names for consistent handling
+ * @param {string} teamName - The team name to normalize
+ * @returns {string} - Normalized team name
+ */
+function normalizeTeamName(teamName) {
+  if (!teamName) return '';
+  
+  return teamName
+    .toLowerCase()
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'o')
+    .replace(/å/g, 'a')
+    .replace(/\s+/g, '-')
+    .replace(/\//g, '-')
+    .replace(/\./g, '')
+    .trim();
+}
+
+/**
+ * Gets initials from a team name
+ * @param {string} teamName - The team name
+ * @returns {string} - Team initials (up to 3 characters)
+ */
+function getInitials(teamName) {
+  if (!teamName) return '';
+  
+  // Special case for teams with slashes like Bodø/Glimt
+  if (teamName.includes('/')) {
+    const parts = teamName.split('/');
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  
+  // For teams with multiple words, get first letter of each word
+  const words = teamName.split(' ');
+  if (words.length > 1) {
+    return words.map(word => word[0]).join('').toUpperCase().substring(0, 3);
+  }
+  
+  // For single word teams, return first 3 letters
+  return teamName.substring(0, 3).toUpperCase();
+}
+
+/**
+ * Gets a color based on team name
+ * @param {string} teamName - The team name
+ * @returns {string} - CSS color class
+ */
+function getTeamColor(teamName) {
+  if (!teamName) return 'bg-gray-500';
+  
+  const normalizedName = normalizeTeamName(teamName);
+  
+  // Color mapping for Norwegian teams
+  const teamColors = {
+    'fredrikstad': 'bg-red-600',
+    'rosenborg': 'bg-black',
+    'molde': 'bg-blue-600',
+    'bodoe-glimt': 'bg-yellow-500',
+    'brann': 'bg-red-700',
+    'lillestroem': 'bg-yellow-600',
+    'viking': 'bg-blue-800',
+    'valerenga': 'bg-blue-700',
+    'stromsgodset': 'bg-blue-500',
+    'odd': 'bg-white',
+    'sarpsborg': 'bg-blue-400',
+    'haugesund': 'bg-white',
+    'tromso': 'bg-red-500',
+    'sandefjord': 'bg-blue-300',
+    'kristiansund': 'bg-red-800',
+    'hamkam': 'bg-green-600',
+    'kfum-kameratene-oslo': 'bg-red-400',
+    'mjondalen': 'bg-brown-500',
+    'start': 'bg-yellow-400',
+    'aalesund': 'bg-orange-500',
+    'stabaek': 'bg-blue-900',
+    'sogndal': 'bg-green-700',
+    'ranheim': 'bg-blue-200',
+    'ull-kisa': 'bg-yellow-300',
+    'jerv': 'bg-yellow-800',
+    'hoedd': 'bg-blue-100',
+    'sandnes-ulf': 'bg-blue-400',
+    'kongsvinger': 'bg-red-300',
+    'raufoss': 'bg-yellow-700',
+    'grorud': 'bg-green-500',
+    'asane': 'bg-green-400',
+    'stjordals-blink': 'bg-red-200',
+    'strommen': 'bg-yellow-200',
+    'arsenal': 'bg-red-600',
+    'manchester-city': 'bg-blue-500',
+    'liverpool': 'bg-red-700',
+    'manchester-united': 'bg-red-800',
+    'chelsea': 'bg-blue-700',
+    'tottenham': 'bg-indigo-100',
+    'newcastle': 'bg-black',
+    'aston-villa': 'bg-purple-900',
+    'brighton': 'bg-blue-400',
+    'west-ham': 'bg-purple-700',
+    'crystal-palace': 'bg-blue-600',
+    'brentford': 'bg-red-500',
+    'fulham': 'bg-white',
+    'wolves': 'bg-yellow-600',
+    'bournemouth': 'bg-red-600',
+    'nottingham-forest': 'bg-red-700',
+    'everton': 'bg-blue-800',
+    'leicester': 'bg-blue-500',
+    'leeds': 'bg-white',
+    'southampton': 'bg-red-600',
+  };
+  
+  return teamColors[normalizedName] || 'bg-gray-500';
+}
+
+/**
+ * Maps a team name to its logo filename
+ * @param {string} teamName - The team name
+ * @returns {string} - Logo filename
+ */
+function getTeamLogoFilename(teamName) {
+  if (!teamName) return '';
+  
+  // Special cases for team names that need specific mapping
+  const specialCases = {
+    'Bodø/Glimt': 'bodo-glimt.png',
+    'Bodoe/Glimt': 'bodo-glimt.png',
+    'Fredrikstad FK': 'fredrikstad.png',
+    'Fredrikstad': 'fredrikstad.png',
+    'Rosenborg BK': 'rosenborg.png',
+    'Rosenborg': 'rosenborg.png',
+    'Molde FK': 'molde.png',
+    'Molde': 'molde.png',
+    'SK Brann': 'brann.png',
+    'Brann': 'brann.png',
+    'Viking FK': 'viking.png',
+    'Viking': 'viking.png',
+    'Vålerenga': 'valerenga.png',
+    'Valerenga': 'valerenga.png',
+    'Lillestrøm SK': 'lillestrom.png',
+    'Lillestrøm': 'lillestrom.png',
+    'Lillestrom': 'lillestrom.png',
+    'Strømsgodset': 'stromsgodset.png',
+    'Stromsgodset': 'stromsgodset.png',
+    'Odd BK': 'odd.png',
+    'Odd': 'odd.png',
+    'Sarpsborg 08': 'sarpsborg.png',
+    'Sarpsborg': 'sarpsborg.png',
+    'FK Haugesund': 'haugesund.png',
+    'Haugesund': 'haugesund.png',
+    'Tromsø IL': 'tromso.png',
+    'Tromsø': 'tromso.png',
+    'Tromso': 'tromso.png',
+    'Sandefjord': 'sandefjord.png',
+    'Kristiansund BK': 'kristiansund-bk-seeklogo.png',
+    'Kristiansund': 'kristiansund-bk-seeklogo.png',
+    'HamKam': 'hamkam.png',
+    'Hamarkameratene': 'hamkam.png',
+    'KFUM Oslo': 'kfum-kameratene-oslo-seeklogo.png',
+    'KFUM': 'kfum-kameratene-oslo-seeklogo.png',
+    'Aalesund': 'aalesund.png',
+    'Aalesunds FK': 'aalesund.png',
+    'Bryne FK': 'bryne-seeklogo.png',
+    'Bryne': 'bryne-seeklogo.png',
+  };
+  
+  // Return the special case if it exists
+  if (specialCases[teamName]) {
+    return specialCases[teamName];
+  }
+  
+  // Otherwise normalize the name and add .png
+  return normalizeTeamName(teamName) + '.png';
+}
+
+/**
+ * TeamLogo component displays a team's logo with fallback to initials
  * @param {Object} props - Component props
  * @param {string} props.teamName - Name of the team
+ * @param {string} props.crest - URL to team crest image (optional)
  * @param {string} props.className - Additional CSS classes
- * @param {string} props.crest - URL to the team's crest image (not used when we have local images)
  * @returns {JSX.Element} - Rendered component
  */
-function TeamLogo({ teamName, className = '', crest }) {
+function TeamLogo({ teamName, crest, className = 'w-6 h-6' }) {
   const [imageError, setImageError] = useState(false);
-
-  // Normalize team name to handle variations
-  const normalizeTeamName = (name) => {
-    // Handle specific team name variations
-    if (name === 'Tromsø IL') return 'Tromsø';
-    if (name === 'Hamarkameratene') return 'HamKam';
-    return name;
-  };
-
-  const normalizedTeamName = normalizeTeamName(teamName);
-
-  // Extract initials from team name for fallback
-  const getInitials = (name) => {
-    // Handle special cases
-    if (name === 'Bodø/Glimt') return 'BG';
-    if (name === 'KFUM Oslo') return 'KO';
-    if (name === 'Hamarkameratene') return 'HK';
-    
-    // For other teams, get first letter of each word
-    const words = name.split(' ');
-    if (words.length === 1) {
-      // For single word names, return first two letters
-      return name.substring(0, 2).toUpperCase();
-    }
-    
-    // For multi-word names, return first letter of each word (up to 2)
-    return words.slice(0, 2).map(word => word[0]).join('').toUpperCase();
-  };
   
-  // Generate a consistent color based on the team name
-  const getTeamColor = (name) => {
-    // Normalize the name first
-    const normalizedName = normalizeTeamName(name);
-    
-    // Specific team colors
-    const teamColors = {
-      'Fredrikstad FK': '#e11212', // Red
-      'Bodø/Glimt': '#FDE900', // Yellow
-      'Molde FK': '#0A2CFA', // Blue
-      'Rosenborg BK': '#000000', // Black
-      'Brann': '#FF0000', // Red
-      'Viking FK': '#003399', // Dark Blue
-      'Vålerenga': '#0033A0', // Blue
-      'Lillestrøm': '#FFF200', // Yellow
-      'Strømsgodset': '#0C2340', // Navy Blue
-      'Sarpsborg 08': '#0046AD', // Blue
-      'Haugesund': '#FFFFFF', // White
-      'Odd': '#000000', // Black
-      'Tromsø': '#FF0000', // Red
-      'Sandefjord': '#0046AD', // Blue
-      'HamKam': '#006633', // Green
-      'Aalesund': '#FF5900', // Orange
-      'Bryne FK': '#FF0000', // Red
-      'Kristiansund BK': '#0046AD', // Blue
-      'KFUM Oslo': '#003399', // Dark Blue
-    };
-    
-    // Return specific team color or fallback to generated color
-    if (teamColors[normalizedName]) {
-      return teamColors[normalizedName];
-    }
-    
-    // Fallback colors for any other teams
-    const colors = [
-      '#1e40af', '#b91c1c', '#4d7c0f', '#7e22ce', '#0e7490', 
-      '#b45309', '#0f766e', '#be185d', '#4338ca', '#a16207'
-    ];
-    
-    // Use a hash function to get a consistent index
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const index = Math.abs(hash) % colors.length;
-    return colors[index];
-  };
-  
-  // Get text color based on background color brightness
-  const getTextColor = (bgColor) => {
-    // For known light colors, use black text
-    if (bgColor === '#FDE900' || bgColor === '#FFF200' || bgColor === '#FFFFFF') {
-      return '#000000';
-    }
-    return '#FFFFFF'; // Default to white text
-  };
-  
-  // Function to get the correct logo filename for a team
-  const getTeamLogoFilename = (teamName) => {
-    // Normalize the team name first
-    const normalizedName = normalizeTeamName(teamName);
-    
-    // Map team names to their exact file names
-    const teamFilenames = {
-      'Fredrikstad FK': 'fredrikstad.png',
-      'Bodø/Glimt': 'bodo-glimt.png',
-      'Molde FK': 'molde.png',
-      'Rosenborg BK': 'rosenborg.png',
-      'Brann': 'brann.png',
-      'Viking FK': 'viking.png',
-      'Vålerenga': 'valerenga.png',
-      'Lillestrøm': 'lillestrom.png',
-      'Strømsgodset': 'stromsgodset.png',
-      'Sarpsborg 08': 'sarpsborg.png',
-      'Haugesund': 'haugesund.png',
-      'Odd': 'odd.png',
-      'Tromsø': 'tromso.png',
-      'Sandefjord': 'sandefjord.png',
-      'HamKam': 'hamkam.png',
-      'Aalesund': 'aalesund.png',
-      'Bryne FK': 'bryne-seeklogo.png',
-      'Kristiansund BK': 'kristiansund-bk-seeklogo.png',
-      'KFUM Oslo': 'kfum-kameratene-oslo-seeklogo.png'
-    };
-    
-    // Return the exact filename if it exists in our mapping
-    if (teamFilenames[normalizedName]) {
-      return teamFilenames[normalizedName];
-    }
-    
-    // Fallback to a normalized version of the team name
-    return normalizedName.toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[\/]/g, '-')
-      .replace(/[ø]/g, 'o')
-      .replace(/[å]/g, 'a')
-      .replace(/[æ]/g, 'ae') + '.png';
-  };
-  
-  const initials = getInitials(teamName);
-  const bgColor = getTeamColor(teamName);
-  
-  // Use public directory for logos
-  if (!imageError) {
-    const logoPath = `/images/teams/${getTeamLogoFilename(teamName)}`;
+  // If no team name or previous image error, show initials
+  if (!teamName || imageError) {
+    const initials = getInitials(teamName || '');
+    const bgColor = getTeamColor(teamName || '');
     
     return (
-      <img 
-        src={logoPath}
-        alt={`${teamName} logo`}
-        className={`${className} w-5 h-5 object-contain`}
-        onError={() => setImageError(true)}
-      />
+      <div className={`flex items-center justify-center rounded-full text-white text-xs font-bold ${bgColor} ${className}`}>
+        {initials}
+      </div>
     );
   }
   
-  // Fallback to colored circle with initials
+  // Try to load local image from public directory
+  const logoFilename = getTeamLogoFilename(teamName);
+  const logoPath = `/images/teams/${logoFilename}`;
+  
+  console.log(`Attempting to load local logo for ${teamName}:`, logoPath);
+  
   return (
-    <div 
-      className={`flex items-center justify-center font-semibold text-xs ${className}`}
-      style={{ 
-        backgroundColor: bgColor,
-        color: getTextColor(bgColor),
-        width: '20px',
-        height: '20px',
-        borderRadius: '50%',
-        flexShrink: 0,
-        border: bgColor === '#FFFFFF' ? '1px solid #ccc' : 'none'
+    <img 
+      src={logoPath}
+      alt={`${teamName} logo`}
+      className={className}
+      onError={(e) => {
+        console.error('Error loading local image:', e.target.src);
+        setImageError(true);
       }}
-    >
-      {initials}
-    </div>
+    />
   );
 }
 

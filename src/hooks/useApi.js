@@ -35,11 +35,17 @@ function useApi(apiFunction, dependencies = [], params = [], useMockData = true)
       console.error(`Error fetching data:`, err);
       setError(err);
       
-      // If useMockData is true and the API function has a mockData property,
-      // use the mock data as a fallback
+      // Only use mock data as fallback if useMockData is true
       if (useMockData && apiFunction.mockData) {
         console.log('Using mock data as fallback due to error');
         setData(apiFunction.mockData);
+      } else {
+        // If useMockData is false, don't use mock data
+        console.log('Not using mock data as fallback (useMockData is false)');
+        // For past events, set data to empty array to avoid null reference errors
+        if (apiFunction.name === 'getPastEvents') {
+          setData({ matches: [] });
+        }
       }
       
       setLoading(false);
@@ -49,7 +55,7 @@ function useApi(apiFunction, dependencies = [], params = [], useMockData = true)
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, dependencies);
+  }, [...dependencies]);
 
   const refetch = () => {
     fetchData();

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Test</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .image-container {
+            margin: 20px;
+            text-align: center;
+        }
+        img {
+            max-width: 200px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Test</h1>
+    
+    <div class="image-container">
+        <h2>Direct Path</h2>
+        <img src="/images/teams/fredrikstad.png" alt="Fredrikstad FK Logo" />
+        <p>/images/teams/fredrikstad.png</p>
+    </div>
+    
+    <div class="image-container">
+        <h2>Relative Path</h2>
+        <img src="images/teams/fredrikstad.png" alt="Fredrikstad FK Logo" />
+        <p>images/teams/fredrikstad.png</p>
+    </div>
+    
+    <div class="image-container">
+        <h2>Full Path</h2>
+        <img src="http://localhost:5173/images/teams/fredrikstad.png" alt="Fredrikstad FK Logo" />
+        <p>http://localhost:5173/images/teams/fredrikstad.png</p>
+    </div>
+</body>
+</html>

@@ -1,11 +1,21 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../components/ui/theme-toggle';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { formatDate } from '../lib/utils';
+import { isFredrikstadTeam } from '../lib/teamUtils';
 import SeasonMatches from '../components/SeasonMatches';
 import TeamLogo from '../components/TeamLogo';
+import TeamInfoCard from '../components/TeamInfoCard';
+import RecentResultsCard from '../components/RecentResultsCard';
+import LeagueTableCard from '../components/LeagueTableCard';
+import EliteserienTable from '../components/EliteserienTable';
+import UpcomingMatchesCard from '../components/UpcomingMatchesCard';
+import FFKInfoCard from '../components/FFKInfoCard';
+import useApi from '../hooks/useApi';
+import { getTeamDetails, getPastEvents, getEliteserienStandings, getPlayerStats } from '../services/sportsDbApi';
 
 // Placeholder data
 const placeholderTeamData = {
@@ -333,11 +343,35 @@ const placeholderPlayerStats = {
 };
 
 function HomePage() {
-  // Use placeholder data directly
-  const teamData = placeholderTeamData;
-  const pastMatches = placeholderPastMatches;
-  const leagueTable = placeholderLeagueTable;
-  const playerStats = placeholderPlayerStats;
+  // Fetch data from API with useMockData set to false
+  const { data: teamData, loading: teamLoading, error: teamError } = useApi(getTeamDetails, [], ['Fredrikstad'], false);
+  const { data: pastMatches, loading: matchesLoading, error: matchesError } = useApi(getPastEvents, [], ['133604'], false);
+  const { data: eliteserienData, loading: eliteserienLoading, error: eliteserienError } = useApi(getEliteserienStandings, [], ['2024'], false);
+  const { data: playerStatsData, loading: playerStatsLoading, error: playerStatsError } = useApi(getPlayerStats, [], ['133604'], false);
+  
+  // Use API data only, no fallback to mock data
+  const teamDataToUse = teamData || placeholderTeamData;
+  const pastMatchesToUse = pastMatches; // No fallback to placeholder data
+  const playerStats = playerStatsData || placeholderPlayerStats;
+  
+  // Get the standings data from the API or use placeholder as fallback
+  const standingsData = eliteserienData?.standings?.[0]?.table || 
+                       (eliteserienData?.table ? eliteserienData.table : 
+                       placeholderLeagueTable?.standings?.[0]?.table || []);
+
+  // Debug output to check what data is being used
+  console.log('Past matches data source:', pastMatches ? 'API data' : 'No data available');
+  console.log('Standings data source:', eliteserienData ? 'API data' : 'Placeholder data');
+  console.log('Player stats data source:', playerStatsData ? 'API data' : 'Placeholder data');
+  if (pastMatches) {
+    console.log('API past matches:', pastMatches);
+  }
+  if (eliteserienData) {
+    console.log('API standings data:', eliteserienData);
+  }
+  if (playerStatsData) {
+    console.log('API player stats data:', playerStatsData);
+  }
 
   // Function to determine the background color based on position
   const getPositionColor = (position) => {
@@ -419,9 +453,17 @@ function HomePage() {
       </div>
       
       <div className="container mx-auto p-4 relative z-10">
-        <header className="flex justify-between items-center mb-8 pt-4">
+        <header className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#e11212] to-[#e11212]/70">FFKStats</h1>
-          <ThemeToggle />
+          <div className="flex items-center space-x-4">
+            <Link 
+              to="/api-home" 
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+            >
+              Live API Data
+            </Link>
+            <ThemeToggle />
+          </div>
         </header>
 
         <div className="relative group overflow-hidden mb-12">
@@ -465,80 +507,178 @@ function HomePage() {
                   </p>
                   
                   {/* Team Stats in Hero Section */}
-                  {leagueTable?.standings?.[0]?.table?.find(team => team.team.name === 'Fredrikstad FK') && (
-                    <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl border border-white/5 p-4">
-                      <h3 className="text-sm font-semibold mb-3 flex items-center">
+                  {standingsData.find(team => isFredrikstadTeam(team.team.name)) && (
+                    <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-4 border border-white/5">
+                      <h3 className="text-sm font-semibold mb-4 flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1 text-red-500">
                           <path d="M15.5 2A1.5 1.5 0 0014 3.5v13a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-13A1.5 1.5 0 0016.5 2h-1zM9.5 6A1.5 1.5 0 008 7.5v9A1.5 1.5 0 009.5 18h1a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0010.5 6h-1zM3.5 10A1.5 1.5 0 002 11.5v5A1.5 1.5 0 003.5 18h1A1.5 1.5 0 006 16.5v-5A1.5 1.5 0 004.5 10h-1z" />
                         </svg>
                         Lagsstatistikk
+                        {eliteserienLoading && (
+                          <div className="ml-2 animate-spin rounded-full h-3 w-3 border-b-2 border-red-500"></div>
+                        )}
                       </h3>
                       
                       {(() => {
-                        const teamData = leagueTable?.standings?.[0]?.table?.find(team => team.team.name === 'Fredrikstad FK');
+                        const teamData = standingsData.find(team => isFredrikstadTeam(team.team.name));
                         if (!teamData) return null;
                         
                         // Calculate percentages
                         const winPercentage = Math.round((teamData.won / teamData.playedGames) * 100);
                         const drawPercentage = Math.round((teamData.draw / teamData.playedGames) * 100);
                         const lossPercentage = Math.round((teamData.lost / teamData.playedGames) * 100);
+                        const goalsForAvg = (teamData.goalsFor / teamData.playedGames).toFixed(1);
+                        const goalsAgainstAvg = (teamData.goalsAgainst / teamData.playedGames).toFixed(1);
                         
                         return (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-3 gap-2 text-center">
-                              <div className="bg-white/5 dark:bg-white/2 backdrop-blur-sm rounded-lg p-2 border border-white/5">
-                                <p className="text-xs text-muted-foreground">Posisjon</p>
-                                <p className="text-xl font-bold">{teamData.position}</p>
+                          <div className="space-y-4">
+                            {/* Top stats with improved visualization */}
+                            <div className="grid grid-cols-5 gap-2">
+                              <div className="col-span-1 bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/2 rounded-xl p-3 border border-white/10 flex flex-col items-center justify-center">
+                                <div className="text-xs text-muted-foreground mb-1">Posisjon</div>
+                                <div className={`text-2xl font-bold ${
+                                  teamData.position <= 2 ? 'text-blue-500' : 
+                                  teamData.position <= 4 ? 'text-emerald-500' : 
+                                  teamData.position === 14 ? 'text-orange-500' : 
+                                  teamData.position >= 15 ? 'text-red-500' : ''
+                                }`}>
+                                  {teamData.position}
+                                </div>
+                                <div className="text-[10px] text-center mt-1 text-muted-foreground">
+                                  {teamData.position <= 2 ? 'Champions League' : 
+                                   teamData.position <= 4 ? 'Conference League' : 
+                                   teamData.position === 14 ? 'Kvalifisering' : 
+                                   teamData.position >= 15 ? 'Nedrykk' : 'Midtbanen'}
+                                </div>
                               </div>
-                              <div className="bg-white/5 dark:bg-white/2 backdrop-blur-sm rounded-lg p-2 border border-white/5">
-                                <p className="text-xs text-muted-foreground">Poeng</p>
-                                <p className="text-xl font-bold">{teamData.points}</p>
+                              
+                              <div className="col-span-2 bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/2 rounded-xl p-3 border border-white/10">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="text-xs font-medium">Poeng</div>
+                                  <div className="text-lg font-bold">{teamData.points}</div>
+                                </div>
+                                <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-red-500 to-red-700"
+                                    style={{ width: `${(teamData.points / (teamData.playedGames * 3)) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <div className="text-[10px] text-right mt-1 text-muted-foreground">
+                                  {Math.round((teamData.points / (teamData.playedGames * 3)) * 100)}% av mulige poeng
+                                </div>
                               </div>
-                              <div className="bg-white/5 dark:bg-white/2 backdrop-blur-sm rounded-lg p-2 border border-white/5">
-                                <p className="text-xs text-muted-foreground">Målforskjell</p>
-                                <p className="text-xl font-bold">{teamData.goalDifference > 0 ? `+${teamData.goalDifference}` : teamData.goalDifference}</p>
+                              
+                              <div className="col-span-2 bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/2 rounded-xl p-3 border border-white/10">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="text-xs font-medium">Målforskjell</div>
+                                  <div className={`text-lg font-bold ${teamData.goalDifference > 0 ? 'text-green-500' : teamData.goalDifference < 0 ? 'text-red-500' : ''}`}>
+                                    {teamData.goalDifference > 0 ? `+${teamData.goalDifference}` : teamData.goalDifference}
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-1 mt-1">
+                                  <div className="text-xs font-medium">{teamData.goalsFor}</div>
+                                  <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden flex">
+                                    <div 
+                                      className="h-full bg-green-500/70"
+                                      style={{ width: `${(teamData.goalsFor / (teamData.goalsFor + teamData.goalsAgainst)) * 100}%` }}
+                                    ></div>
+                                    <div 
+                                      className="h-full bg-red-500/70"
+                                      style={{ width: `${(teamData.goalsAgainst / (teamData.goalsFor + teamData.goalsAgainst)) * 100}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="text-xs font-medium">{teamData.goalsAgainst}</div>
+                                </div>
+                                <div className="flex justify-between text-[10px] mt-1 text-muted-foreground">
+                                  <span>{goalsForAvg} mål/kamp</span>
+                                  <span>{goalsAgainstAvg} imot/kamp</span>
+                                </div>
                               </div>
                             </div>
                             
-                            {/* Results Breakdown */}
-                            <div className="space-y-2">
-                              <div className="flex items-center">
-                                <div className="w-16 text-sm">Seire</div>
-                                <div className="flex-1 h-5 bg-white/5 dark:bg-white/2 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-green-500/50 flex items-center justify-end pr-2 text-xs font-bold"
-                                    style={{ width: `${winPercentage}%` }}
-                                  >
-                                    {teamData.won}
-                                  </div>
-                                </div>
-                                <div className="w-10 text-xs text-right">{winPercentage}%</div>
+                            {/* Results visualization with improved design */}
+                            <div className="bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/2 rounded-xl p-3 border border-white/10">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs font-medium">Resultater</div>
+                                <div className="text-xs text-muted-foreground">{teamData.playedGames} kamper</div>
                               </div>
                               
-                              <div className="flex items-center">
-                                <div className="w-16 text-sm">Uavgjort</div>
-                                <div className="flex-1 h-5 bg-white/5 dark:bg-white/2 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-blue-500/50 flex items-center justify-end pr-2 text-xs font-bold"
-                                    style={{ width: `${drawPercentage}%` }}
-                                  >
-                                    {teamData.draw}
-                                  </div>
+                              <div className="flex items-center space-x-1">
+                                {/* Win segment */}
+                                <div 
+                                  className="h-8 bg-green-500/60 rounded-l-md flex items-center justify-center"
+                                  style={{ width: `${winPercentage}%` }}
+                                >
+                                  {winPercentage >= 10 && (
+                                    <div className="text-xs font-bold text-white flex items-center">
+                                      <span className="mr-1">{teamData.won}</span>
+                                      {winPercentage >= 20 && <span>seire</span>}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="w-10 text-xs text-right">{drawPercentage}%</div>
+                                
+                                {/* Draw segment */}
+                                <div 
+                                  className="h-8 bg-blue-500/60 flex items-center justify-center"
+                                  style={{ width: `${drawPercentage}%` }}
+                                >
+                                  {drawPercentage >= 10 && (
+                                    <div className="text-xs font-bold text-white flex items-center">
+                                      <span className="mr-1">{teamData.draw}</span>
+                                      {drawPercentage >= 20 && <span>uavgjort</span>}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Loss segment */}
+                                <div 
+                                  className="h-8 bg-red-500/60 rounded-r-md flex items-center justify-center"
+                                  style={{ width: `${lossPercentage}%` }}
+                                >
+                                  {lossPercentage >= 10 && (
+                                    <div className="text-xs font-bold text-white flex items-center">
+                                      <span className="mr-1">{teamData.lost}</span>
+                                      {lossPercentage >= 20 && <span>tap</span>}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               
-                              <div className="flex items-center">
-                                <div className="w-16 text-sm">Tap</div>
-                                <div className="flex-1 h-5 bg-white/5 dark:bg-white/2 rounded-full overflow-hidden">
+                              <div className="flex justify-between text-[10px] mt-1 text-muted-foreground">
+                                <span>{winPercentage}%</span>
+                                <span>{drawPercentage}%</span>
+                                <span>{lossPercentage}%</span>
+                              </div>
+                            </div>
+                            
+                            {/* Form guide */}
+                            <div className="bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/2 rounded-xl p-3 border border-white/10">
+                              <div className="text-xs font-medium mb-2">Siste 5 kamper</div>
+                              <div className="flex space-x-1">
+                                {(pastMatchesToUse?.matches?.slice(0, 5).map(match => {
+                                  const isHome = isFredrikstadTeam(match.homeTeam.name);
+                                  const ffkScore = isHome ? match.score.fullTime.home : match.score.fullTime.away;
+                                  const oppScore = isHome ? match.score.fullTime.away : match.score.fullTime.home;
+                                  
+                                  let result = 'D'; // Default to draw
+                                  if (ffkScore > oppScore) result = 'W';
+                                  else if (ffkScore < oppScore) result = 'L';
+                                  
+                                  return result;
+                                }) || ['W', 'D', 'L', 'W', 'W']).map((result, i) => (
                                   <div 
-                                    className="h-full bg-red-500/50 flex items-center justify-end pr-2 text-xs font-bold"
-                                    style={{ width: `${lossPercentage}%` }}
+                                    key={i} 
+                                    className={`flex-1 h-10 rounded-md flex items-center justify-center text-xs font-bold ${
+                                      result === 'W' 
+                                        ? 'bg-green-500/60 text-white' 
+                                        : result === 'L' 
+                                          ? 'bg-red-500/60 text-white' 
+                                          : 'bg-blue-500/60 text-white'
+                                    }`}
                                   >
-                                    {teamData.lost}
+                                    {result === 'W' ? 'S' : result === 'L' ? 'T' : 'U'}
                                   </div>
-                                </div>
-                                <div className="w-10 text-xs text-right">{lossPercentage}%</div>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -549,57 +689,8 @@ function HomePage() {
                 </div>
                 
                 <div>
-                  <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl border border-white/5 p-4 h-full">
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center border-b border-white/10 dark:border-white/5 pb-2">
-                        <span className="text-xs font-medium text-red-500/80 dark:text-red-400/80">SISTE OVERGANGER</span>
-                        <span className="text-xs font-medium">Vinteren 2025</span>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        {/* Recent Transfers */}
-                        <div className="space-y-3">
-                          <div className="flex items-center space-x-3 p-2 bg-white/5 dark:bg-white/2 rounded-lg">
-                            <div className="flex-shrink-0 w-8 h-8 bg-green-500/10 rounded-full flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
-                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5A.75.75 0 0010.75 4.75z" />
-                              </svg>
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">Markus Kaasa</p>
-                              <p className="text-xs text-muted-foreground">Fra Molde FK</p>
-                            </div>
-                            <div className="text-xs font-medium text-green-500">INN</div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 p-2 bg-white/5 dark:bg-white/2 rounded-lg">
-                            <div className="flex-shrink-0 w-8 h-8 bg-green-500/10 rounded-full flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
-                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                              </svg>
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">Simen Rafn</p>
-                              <p className="text-xs text-muted-foreground">Fra Lillestrøm</p>
-                            </div>
-                            <div className="text-xs font-medium text-green-500">INN</div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 p-2 bg-white/5 dark:bg-white/2 rounded-lg">
-                            <div className="flex-shrink-0 w-8 h-8 bg-red-500/10 rounded-full flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-500">
-                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                              </svg>
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">Henrik Kjelsrud Johansen</p>
-                              <p className="text-xs text-muted-foreground">Til Sarpsborg 08</p>
-                            </div>
-                            <div className="text-xs font-medium text-red-500">UT</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-4 border border-white/5 h-full">
+                    <FFKInfoCard />
                   </div>
                 </div>
               </div>
@@ -617,7 +708,7 @@ function HomePage() {
                     <span className="relative z-10 flex items-center">
                       Utforsk Statistikk
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 ml-1.5 group-hover:translate-x-1 transition-transform duration-200">
-                        <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 011.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />
+                        <path d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 011.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" />
                       </svg>
                     </span>
                     <span className="absolute inset-0 -z-10 bg-gradient-to-r from-red-600/80 to-red-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></span>
@@ -629,261 +720,8 @@ function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Team Info - Modernized */}
-          <div className="relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg">
-            {/* Decorative elements */}
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
-            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
-            
-            {/* Top accent bar */}
-            <div className="h-1 w-full bg-gradient-to-r from-red-700/50 via-red-500/50 to-red-700/50"></div>
-            
-            <div className="p-6">
-              {/* Team header with modern layout */}
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="relative">
-                  {teamData?.crest ? (
-                    <img src={teamData.crest} alt={teamData.name} className="w-16 h-16 object-contain" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500/20 to-red-700/20 flex items-center justify-center">
-                      <TeamLogo teamName={teamData?.name} className="w-12 h-12" />
-                    </div>
-                  )}
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-md">
-                    <span className="text-xs font-bold text-red-600">FK</span>
-                  </div>
-                </div>
-                
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight">{teamData?.name}</h2>
-                  <div className="flex items-center mt-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-500 mr-1">
-                      <path d="M9.69 18.933l-.005.003-.019.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-1.9C4.045 12.733 2 10.352 2 7.5a4.5 4.5 0 018-2.828A4.5 4.5 0 0118 7.5c0 2.852-2.044 5.233-3.885 6.82a22.049 22.049 0 01-3.744 2.582l-.019.01-.005.003h-.002a.739.739 0 01-.69.001l-.002-.001z" />
-                    </svg>
-                    <p className="text-sm text-muted-foreground">{teamData?.venue}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Team details with modern cards */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-3 border border-white/5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Grunnlagt</p>
-                  <p className="font-semibold">{teamData?.founded}</p>
-                </div>
-                <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-3 border border-white/5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Farger</p>
-                  <p className="font-semibold">{teamData?.clubColors}</p>
-                </div>
-              </div>
-              
-              {/* Club Achievements - Modern design */}
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-4 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.285 12.686l1.414 1.414L10 11.172l-1.414 1.414L8.285 12.686l-1.414-1.414 1.414-1.414z" clipRule="evenodd" />
-                  </svg>
-                  Meritter
-                </h3>
-                <div className="space-y-3">
-                  {teamData?.achievements?.map((achievement, index) => (
-                    <div key={index} className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-3 border border-white/5">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">{achievement.title}</span>
-                        <span className="bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold px-2 py-1 rounded-full">{achievement.count}x</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2 line-clamp-1">{achievement.years}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Results - Modernized */}
-          <div className="relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg">
-            {/* Decorative elements */}
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
-            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
-            
-            {/* Top accent bar */}
-            <div className="h-1 w-full bg-gradient-to-r from-red-700/50 via-red-500/50 to-red-700/50"></div>
-            
-            <div className="p-6">
-              <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
-                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6.285 12.686l1.414 1.414L10 11.172l-1.414 1.414L8.285 12.686l-1.414-1.414 1.414-1.414z" clipRule="evenodd" />
-                </svg>
-                Siste Resultater
-              </h2>
-              
-              {pastMatches?.matches?.length > 0 ? (
-                <div className="space-y-4">
-                  {pastMatches.matches.map(match => (
-                    <div key={match.id} className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-4 border border-white/5 transition-all duration-200 hover:bg-white/10 dark:hover:bg-white/5">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center">
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 dark:bg-white/5 text-muted-foreground mr-2">
-                            {match.competition.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground">{formatDate(match.utcDate)}</span>
-                        </div>
-                        <div className={`text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 dark:bg-white/5 ${
-                          match.score.fullTime.home > match.score.fullTime.away 
-                            ? 'bg-green-500/10 text-green-600 dark:text-green-400' 
-                            : match.score.fullTime.home < match.score.fullTime.away 
-                              ? 'bg-red-500/10 text-red-600 dark:text-red-400' 
-                              : 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
-                        }`}>
-                          {match.score.fullTime.home > match.score.fullTime.away 
-                            ? 'Seier' 
-                            : match.score.fullTime.home < match.score.fullTime.away 
-                              ? 'Tap' 
-                              : 'Uavgjort'}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-8 h-8 rounded-full bg-white/10 dark:bg-white/5 flex items-center justify-center">
-                            <TeamLogo teamName={match.homeTeam.name} className="w-5 h-5" />
-                          </div>
-                          <span className="font-medium">{match.homeTeam.name}</span>
-                        </div>
-                        
-                        <div className="flex items-center space-x-1 font-bold text-lg">
-                          <div className={`px-3 py-1 rounded-lg ${match.score.fullTime.home > match.score.fullTime.away ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-white/10 dark:bg-white/5'}`}>
-                            {match.score.fullTime.home}
-                          </div>
-                          <span className="text-muted-foreground">-</span>
-                          <div className={`px-3 py-1 rounded-lg ${match.score.fullTime.home < match.score.fullTime.away ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-white/10 dark:bg-white/5'}`}>
-                            {match.score.fullTime.away}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">{match.awayTeam.name}</span>
-                          <div className="w-8 h-8 rounded-full bg-white/10 dark:bg-white/5 flex items-center justify-center">
-                            <TeamLogo teamName={match.awayTeam.name} className="w-5 h-5" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-6 border border-white/5 flex flex-col items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-10 h-10 text-muted-foreground mb-2 opacity-50">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.285 12.686l1.414 1.414L10 11.172l-1.414 1.414L8.285 12.686l-1.414-1.414 1.414-1.414z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-muted-foreground">Ingen nylige kamper funnet</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* League Table and Team Stats - Grid Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            {/* League Table - Modernized */}
-            <div className="md:col-span-3 relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg">
-              {/* Decorative elements */}
-              <div className="absolute -right-16 -top-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
-              <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
-              
-              {/* Top accent bar */}
-              <div className="h-1 w-full bg-gradient-to-r from-red-700/50 via-red-500/50 to-red-700/50"></div>
-              
-              <div className="p-6">
-                <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
-                    <path d="M4.93 1.31a41.401 41.401 0 0110.14 0C16.194 1.45 17 2.414 17 3.517V18.25a.75.75 0 01-1.075.676l-2.8-1.344-2.8 1.344a.75.75 0 01-.65 0l-2.8-1.344-2.8 1.344A.75.75 0 013 18.25V3.517c0-1.103.806-2.068 1.93-2.207z" />
-                  </svg>
-                  Eliteserien Tabell
-                </h2>
-                
-                {/* Position Legend */}
-                <div className="flex flex-wrap gap-2 mb-6 bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-3 border border-white/5">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-blue-200 dark:bg-blue-600/40 mr-1 rounded-sm"></div>
-                    <span className="text-xs">Champions League Kvalifisering</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-emerald-200 dark:bg-emerald-600/40 mr-1 rounded-sm"></div>
-                    <span className="text-xs">Conference League Kvalifisering</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-orange-200 dark:bg-orange-600/40 mr-1 rounded-sm"></div>
-                    <span className="text-xs">Nedrykkskvalifikasjon</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-red-200 dark:bg-red-600/40 mr-1 rounded-sm"></div>
-                    <span className="text-xs">Direkte Nedrykk</span>
-                  </div>
-                </div>
-                
-                {/* Table */}
-                <div className="overflow-hidden rounded-xl border border-white/5 bg-white/5 dark:bg-white/2 backdrop-blur-md">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/10 dark:border-white/5 bg-white/10 dark:bg-white/5">
-                          <th className="py-3 px-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">#</th>
-                          <th className="py-3 px-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Lag</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">K</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">V</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">U</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">T</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">+/-</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">P</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {leagueTable?.standings?.[0]?.table?.map((team) => {
-                          const positionColor = getPositionColor(team.position);
-                          const positionLabel = getPositionLabel(team.position);
-                          
-                          return (
-                            <tr 
-                              key={team.team.id} 
-                              className={`border-b border-white/5 transition-colors hover:bg-white/10 dark:hover:bg-white/5 ${
-                                team.team.name === 'Fredrikstad FK' ? 'bg-red-500/5' : ''
-                              }`}
-                            >
-                              <td className={`py-3 px-4 text-sm font-medium ${positionColor}`}>
-                                <div className="flex items-center">
-                                  <span>{team.position}</span>
-                                  {positionLabel && (
-                                    <span className="ml-1 inline-block w-2 h-2 rounded-full bg-current"></span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center">
-                                  <div className="w-6 h-6 mr-2 flex-shrink-0">
-                                    <TeamLogo teamName={team.team.name} />
-                                  </div>
-                                  <span className="font-medium">{team.team.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-center text-sm">{team.playedGames}</td>
-                              <td className="py-3 px-4 text-center text-sm">{team.won}</td>
-                              <td className="py-3 px-4 text-center text-sm">{team.draw}</td>
-                              <td className="py-3 px-4 text-center text-sm">{team.lost}</td>
-                              <td className="py-3 px-4 text-center text-sm">{team.goalDifference}</td>
-                              <td className="py-3 px-4 text-center text-sm font-bold">{team.points}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Player Stats - Modernized */}
-          <div className="relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg mt-6">
+          <div className="relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg">
             {/* Decorative elements */}
             <div className="absolute -right-16 -top-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
             <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
@@ -894,9 +732,12 @@ function HomePage() {
             <div className="p-6">
               <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
-                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6.285 12.686l1.414 1.414L10 11.172l-1.414 1.414L8.285 12.686l-1.414-1.414 1.414-1.414z" clipRule="evenodd" />
+                  <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
                 </svg>
                 Spillerstatistikk
+                {playerStatsLoading && (
+                  <div className="ml-2 animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
+                )}
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -904,9 +745,12 @@ function HomePage() {
                 <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-4 border border-white/5">
                   <h3 className="text-sm font-semibold mb-4 flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1 text-red-500">
-                      <path d="M9.653 2.289a.75.75 0 01.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
+                      <path d="M9.653 2.289l-.005.003-.019.01a20.759 20.759 0 0110.14 0C16.194 1.45 17 2.414 17 3.517V18.25a.75.75 0 01-1.075.676l-2.8-1.344-2.8 1.344a.75.75 0 01-.65 0l-2.8-1.344-2.8 1.344A.75.75 0 013 18.25V3.517c0-1.103.806-2.068 1.93-2.207z" />
                     </svg>
                     Toppscorere
+                    {playerStatsLoading && (
+                      <div className="ml-2 animate-spin rounded-full h-3 w-3 border-b-2 border-red-500"></div>
+                    )}
                   </h3>
                   <div className="space-y-3">
                     {playerStats?.topScorers?.map((player, index) => (
@@ -919,7 +763,7 @@ function HomePage() {
                                   <img src={player.image} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
                                 ) : (
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6 text-red-500">
-                                    <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+                                    <path d="M3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
                                   </svg>
                                 )}
                               </div>
@@ -947,6 +791,9 @@ function HomePage() {
                       <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
                     </svg>
                     Flest Målgivende
+                    {playerStatsLoading && (
+                      <div className="ml-2 animate-spin rounded-full h-3 w-3 border-b-2 border-red-500"></div>
+                    )}
                   </h3>
                   <div className="space-y-3">
                     {playerStats?.topAssists?.map((player, index) => (
@@ -959,7 +806,7 @@ function HomePage() {
                                   <img src={player.image} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
                                 ) : (
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6 text-red-500">
-                                    <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+                                    <path d="M3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
                                   </svg>
                                 )}
                               </div>
@@ -985,7 +832,7 @@ function HomePage() {
               <div className="mt-6 bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-4 border border-white/5">
                 <h3 className="text-sm font-semibold mb-4 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1 text-red-500">
-                    <path fillRule="evenodd" d="M1 2.75A.75.75 0 011.75 2h16.5a.75.75 0 010 1.5H18v8.75A2.75 2.75 0 0115.25 15h-1.072l.798 3.06a.75.75 0 01-1.452.38L13.41 18H6.59l-.114.44a.75.75 0 01-1.452-.38L5.823 15H4.75A2.75 2.75 0 012 12.25V3.5h-.25A.75.75 0 011 2.75zM7.373 15l-.391 1.5h6.037l-.392-1.5H7.373zM13.25 5a.75.75 0 01.75.75v5.5a.75.75 0 01-1.5 0v-5.5a.75.75 0 01.75-.75zm-6.5 4a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" />
+                    <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
                   </svg>
                   Spillerform
                 </h3>
@@ -1006,7 +853,7 @@ function HomePage() {
                         <tr key={index} className="border-b border-white/5 transition-colors hover:bg-white/10 dark:hover:bg-white/5">
                           <td className="py-2 px-2">
                             <div className="flex items-center space-x-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-red-500/20 to-red-700/20 flex items-center justify-center flex-shrink-0">
+                              <div className="w-7 h-7 rounded-full bg-white/10 dark:bg-white/5 flex items-center justify-center flex-shrink-0">
                                 {player.image ? (
                                   <img src={player.image} alt={player.name} className="w-7 h-7 rounded-full object-cover" />
                                 ) : (
@@ -1055,6 +902,161 @@ function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* Recent Results - Modernized */}
+          <div className="relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg">
+            {/* Decorative elements */}
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
+            
+            {/* Top accent bar */}
+            <div className="h-1 w-full bg-gradient-to-r from-red-700/50 via-red-500/50 to-red-700/50"></div>
+            
+            <div className="p-6">
+              <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
+                  <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+                </svg>
+                Siste Resultater
+              </h2>
+              
+              {pastMatchesToUse?.matches?.length > 0 ? (
+                <div className="space-y-4">
+                  {pastMatchesToUse.matches.map(match => (
+                    <div key={match.id} className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-4 border border-white/5 transition-all duration-200 hover:bg-white/10 dark:hover:bg-white/5">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 dark:bg-white/5 text-muted-foreground mr-2">
+                            {match.competition.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{formatDate(match.utcDate)}</span>
+                        </div>
+                        <div className={`text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 dark:bg-white/5 ${
+                          match.score.fullTime.home > match.score.fullTime.away 
+                            ? 'bg-green-500/10 text-green-600 dark:text-green-400' 
+                            : match.score.fullTime.home < match.score.fullTime.away 
+                              ? 'bg-red-500/10 text-red-600 dark:text-red-400' 
+                              : 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+                        }`}>
+                          {match.score.fullTime.home > match.score.fullTime.away 
+                            ? 'Seier' 
+                            : match.score.fullTime.home < match.score.fullTime.away 
+                              ? 'Tap' 
+                              : 'Uavgjort'}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 rounded-full bg-white/10 dark:bg-white/5 flex items-center justify-center">
+                            <TeamLogo teamName={match.homeTeam.name} crest={match.homeTeam.crest} className="w-5 h-5" />
+                          </div>
+                          <span className="font-medium">{match.homeTeam.name}</span>
+                        </div>
+                        
+                        <div className="flex items-center space-x-1 font-bold text-lg">
+                          <div className={`px-3 py-1 rounded-lg ${match.score.fullTime.home > match.score.fullTime.away ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-white/10 dark:bg-white/5'}`}>
+                            {match.score.fullTime.home}
+                          </div>
+                          <span className="text-muted-foreground">-</span>
+                          <div className={`px-3 py-1 rounded-lg ${match.score.fullTime.home < match.score.fullTime.away ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-white/10 dark:bg-white/5'}`}>
+                            {match.score.fullTime.away}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium">{match.awayTeam.name}</span>
+                          <div className="w-8 h-8 rounded-full bg-white/10 dark:bg-white/5 flex items-center justify-center">
+                            <TeamLogo teamName={match.awayTeam.name} crest={match.awayTeam.crest} className="w-5 h-5" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-6 border border-white/5 flex flex-col items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-10 h-10 text-muted-foreground mb-2 opacity-50">
+                    <path fillRule="evenodd" d="M1 2.75A.75.75 0 011.75 2h16.5a.75.75 0 010 1.5H18v8.75A2.75 2.75 0 0115.25 15h-1.072l.798 3.06a.75.75 0 01-1.452.38L13.41 18H6.59l-.114.44a.75.75 0 01-1.452-.38L5.823 15H4.75A2.75 2.75 0 012 12.25V3.5h-.25A.75.75 0 011 2.75zM7.373 15l-.391 1.5h6.037l-.392-1.5H7.373zM13.25 5a.75.75 0 01.75-.75v5.5a.75.75 0 01-1.5 0v-5.5a.75.75 0 01.75-.75zm-6.5 4a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" />
+                  </svg>
+                  <p className="text-muted-foreground">Ingen nylige kamper funnet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Upcoming Matches */}
+          <div className="relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg mt-6">
+            {/* Decorative elements */}
+            <div className="absolute -right-16 -top-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
+            
+            {/* Top accent bar */}
+            <div className="h-1 w-full bg-gradient-to-r from-red-700/50 via-red-500/50 to-red-700/50"></div>
+            
+            <div className="p-6">
+              <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
+                  <path d="M3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+                </svg>
+                FFK Kommende Kamper
+              </h2>
+              <div className="overflow-hidden rounded-xl border border-white/5 bg-white/5 dark:bg-white/2 backdrop-blur-md">
+                <UpcomingMatchesCard />
+              </div>
+            </div>
+          </div>
+
+          {/* League Table and Team Stats - Grid Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            {/* League Table - Modernized */}
+            <div className="md:col-span-3 relative overflow-hidden backdrop-blur-lg bg-gradient-to-br from-white/5 to-white/10 dark:from-white/5 dark:to-white/2 border border-white/10 dark:border-white/5 rounded-2xl shadow-lg">
+              {/* Decorative elements */}
+              <div className="absolute -right-16 -top-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
+              <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-red-500/10 rounded-full blur-3xl"></div>
+              
+              {/* Top accent bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-red-700/50 via-red-500/50 to-red-700/50"></div>
+              
+              <div className="p-6">
+                <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-red-500">
+                    <path d="M4.93 1.31a41.401 41.401 0 0110.14 0C16.194 1.45 17 2.414 17 3.517V18.25a.75.75 0 01-1.075.676l-2.8-1.344-2.8 1.344a.75.75 0 01-.65 0l-2.8-1.344-2.8 1.344A.75.75 0 013 18.25V3.517c0-1.103.806-2.068 1.93-2.207z" />
+                  </svg>
+                  Eliteserien Tabell
+                </h2>
+                
+                {/* Position Legend */}
+                <div className="flex flex-wrap gap-2 mb-6 bg-white/5 dark:bg-white/2 backdrop-blur-md rounded-xl p-3 border border-white/5">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-blue-200 dark:bg-blue-600/40 mr-1 rounded-sm"></div>
+                    <span className="text-xs">Champions League Kvalifisering</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-emerald-200 dark:bg-emerald-600/40 mr-1 rounded-sm"></div>
+                    <span className="text-xs">Conference League Kvalifisering</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-orange-200 dark:bg-orange-600/40 mr-1 rounded-sm"></div>
+                    <span className="text-xs">Nedrykkskvalifikasjon</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-red-200 dark:bg-red-600/40 mr-1 rounded-sm"></div>
+                    <span className="text-xs">Direkte Nedrykk</span>
+                  </div>
+                </div>
+                
+                {/* Table */}
+                <div className="overflow-hidden rounded-xl border border-white/5 bg-white/5 dark:bg-white/2 backdrop-blur-md">
+                  <div className="overflow-x-auto">
+                    <EliteserienTable />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional content can be added here */}
         </div>
       </div>
     </div>
